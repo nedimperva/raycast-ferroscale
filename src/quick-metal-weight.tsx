@@ -4,7 +4,6 @@ import {
   Color,
   Detail,
   Icon,
-  Keyboard,
   List,
   LocalStorage,
 } from "@raycast/api";
@@ -429,15 +428,15 @@ export default function Command() {
                   <ActionPanel>
                     <Action.CopyToClipboard
                       content={`${response.result.unitWeightKg.toFixed(3)} kg`}
-                      title="Copy Single Weight (kg)"
+                      title="Copy Single Weight (Kg)"
                     />
                     <Action.CopyToClipboard
                       content={`${(response.result.unitWeightKg * KG_TO_LBS).toFixed(3)} lbs`}
-                      title="Copy Single Weight (lbs)"
+                      title="Copy Single Weight (Lbs)"
                     />
                     <Action.CopyToClipboard
                       content={`${response.result.totalWeightKg.toFixed(3)} kg`}
-                      title="Copy Total Weight (kg)"
+                      title="Copy Total Weight (Kg)"
                     />
                     <ExtraCopyActions result={response.result} />
                     <AliasQuickReferenceActions />
@@ -457,15 +456,15 @@ export default function Command() {
                   <ActionPanel>
                     <Action.CopyToClipboard
                       content={`${response.result.totalWeightKg.toFixed(3)} kg`}
-                      title="Copy Total Weight (kg)"
+                      title="Copy Total Weight (Kg)"
                     />
                     <Action.CopyToClipboard
                       content={`${(response.result.totalWeightKg * KG_TO_LBS).toFixed(3)} lbs`}
-                      title="Copy Total Weight (lbs)"
+                      title="Copy Total Weight (Lbs)"
                     />
                     <Action.CopyToClipboard
                       content={`${response.result.unitWeightKg.toFixed(3)} kg`}
-                      title="Copy Single Weight (kg)"
+                      title="Copy Single Weight (Kg)"
                     />
                     <ExtraCopyActions result={response.result} />
                     <AliasQuickReferenceActions />
@@ -483,11 +482,11 @@ export default function Command() {
                 <ActionPanel>
                   <Action.CopyToClipboard
                     content={`${response.result.unitWeightKg.toFixed(3)} kg`}
-                    title="Copy Weight (kg)"
+                    title="Copy Weight (Kg)"
                   />
                   <Action.CopyToClipboard
                     content={`${(response.result.unitWeightKg * KG_TO_LBS).toFixed(3)} lbs`}
-                    title="Copy Weight (lbs)"
+                    title="Copy Weight (Lbs)"
                   />
                   <ExtraCopyActions result={response.result} />
                   <AliasQuickReferenceActions />
