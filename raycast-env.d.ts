@@ -13,12 +13,12 @@ type ExtensionPreferences = {}
 declare type Preferences = ExtensionPreferences
 
 declare namespace Preferences {
-  /** Preferences accessible in the `quick-metal-weight` command */
-  export type QuickMetalWeight = ExtensionPreferences & {}
+  /** Preferences accessible in the `ferroscale` command */
+  export type Ferroscale = ExtensionPreferences & {}
 }
 
 declare namespace Arguments {
-  /** Arguments passed to the `quick-metal-weight` command */
-  export type QuickMetalWeight = {}
+  /** Arguments passed to the `ferroscale` command */
+  export type Ferroscale = {}
 }
 
