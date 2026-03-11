@@ -270,14 +270,14 @@ interface RefEntry {
 const QUICK_REF_ENTRIES: RefEntry[] = [
   // Bars
   { section: "Bars", title: "rb", subtitle: "Round Bar  ·  D × L", example: "rb 30x6000", icon: Icon.Circle, iconColor: Color.Orange },
-  { section: "Bars", title: "sb", subtitle: "Square Bar  ·  A × L", example: "sb 30x6000", icon: Icon.Square, iconColor: Color.Orange },
+  { section: "Bars", title: "sb", subtitle: "Square Bar  ·  A × L", example: "sb 30x6000", icon: Icon.Stop, iconColor: Color.Orange },
   { section: "Bars", title: "fb", subtitle: "Flat Bar  ·  W × T × L  (or fb W×L t=T)", example: "fb 80x6000 t=8", icon: Icon.Minus, iconColor: Color.Orange },
   // Tubes — Custom
   { section: "Tubes — Custom", title: "chs  /  pipe", subtitle: "Circular Hollow Section  ·  OD × T × L", example: "chs 60.3x3.2x6000", icon: Icon.Circle, iconColor: Color.Blue },
-  { section: "Tubes — Custom", title: "shs", subtitle: "Square Hollow Section  ·  A × T × L", example: "shs 40x4x6000", icon: Icon.Square, iconColor: Color.Blue },
+  { section: "Tubes — Custom", title: "shs", subtitle: "Square Hollow Section  ·  A × T × L", example: "shs 40x4x6000", icon: Icon.Stop, iconColor: Color.Blue },
   { section: "Tubes — Custom", title: "rhs", subtitle: "Rectangular Hollow Section  ·  W × H × T × L", example: "rhs 80x60x5x6000", icon: Icon.AppWindowGrid2x2, iconColor: Color.Blue },
   // Tubes — EN Standard
-  { section: "Tubes — EN Standard", title: "shss  /  shstd", subtitle: "SHS EN table  ·  A × T × L", example: "shss 40x4x6000 mat=s355", icon: Icon.Square, iconColor: Color.Purple },
+  { section: "Tubes — EN Standard", title: "shss  /  shstd", subtitle: "SHS EN table  ·  A × T × L", example: "shss 40x4x6000 mat=s355", icon: Icon.Stop, iconColor: Color.Purple },
   { section: "Tubes — EN Standard", title: "rhss  /  rhstd", subtitle: "RHS EN table  ·  W × H × T × L", example: "rhss 100x60x5x6000 qty=4", icon: Icon.AppWindowGrid2x2, iconColor: Color.Purple },
   // Structural
   { section: "Structural (EN)", title: "ipe", subtitle: "IPE beam  ·  ipe <size>×<length>", example: "ipe 200x6000 mat=s355", icon: Icon.Building, iconColor: Color.Green },

@@ -197,13 +197,13 @@ function ResultRow({
   primaryAction,
   primaryActionTitle,
   primaryActionIcon,
-  secondaryAction,
+  onChangeA,
 }: {
   result: QuickWeightResult;
   primaryAction: () => void;
   primaryActionTitle: string;
   primaryActionIcon: Icon;
-  secondaryAction?: React.ReactNode;
+  onChangeA?: () => void;
 }) {
   const tonnes = result.totalWeightKg / 1000;
   const tonnesStr = tonnes >= 0.001 ? ` · ${tonnes.toFixed(3)} t` : "";
@@ -220,7 +220,13 @@ function ResultRow({
             icon={primaryActionIcon}
             onAction={primaryAction}
           />
-          {secondaryAction}
+          {onChangeA && (
+            <Action
+              title="Change Profile A"
+              icon={Icon.ArrowLeft}
+              onAction={onChangeA}
+            />
+          )}
         </ActionPanel>
       }
     />
@@ -272,10 +278,6 @@ export function CompareProfilesView() {
     setPhase("entering_a");
   }
 
-  const changeAAction = (
-    <Action title="Change Profile A" icon={Icon.ArrowLeft} onAction={handleChangeA} />
-  );
-
   return (
     <List
       key={phase}
@@ -303,7 +305,11 @@ export function CompareProfilesView() {
             ]}
             actions={
               <ActionPanel>
-                {changeAAction}
+                <Action
+                  title="Change Profile A"
+                  icon={Icon.ArrowLeft}
+                  onAction={handleChangeA}
+                />
               </ActionPanel>
             }
           />
@@ -347,7 +353,7 @@ export function CompareProfilesView() {
               phase === "entering_a" ? Icon.LockUnlocked : Icon.TwoArrowsClockwise
             }
             primaryAction={phase === "entering_a" ? handleLockA : handleCompare}
-            secondaryAction={phase === "entering_b" ? changeAAction : undefined}
+            onChangeA={phase === "entering_b" ? handleChangeA : undefined}
           />
         ) : null}
       </List.Section>
