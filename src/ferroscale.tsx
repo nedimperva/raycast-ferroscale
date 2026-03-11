@@ -2,7 +2,6 @@ import {
   Action,
   ActionPanel,
   Color,
-  Detail,
   Icon,
   List,
   LocalStorage,
