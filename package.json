@@ -1,8 +1,8 @@
 {
   "name": "ferroscale-raycast-extension",
-  "version": "0.1.0",
-  "title": "Ferroscale Quick Weight",
-  "description": "Quick metal profile weight calculations from shorthand input.",
+  "version": "0.2.0",
+  "title": "Ferroscale",
+  "description": "Unified metal profile weight calculator with profile search, comparison, materials, and history.",
   "icon": "icon.png",
   "author": "nedim_perva",
   "license": "MIT",
@@ -18,7 +18,6 @@
   "categories": [
     "Productivity"
   ],
-  "private": true,
   "scripts": {
     "dev": "ray develop",
     "build": "ray build",

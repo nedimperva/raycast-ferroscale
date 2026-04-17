@@ -4,7 +4,6 @@ import {
   Color,
   Icon,
   List,
-  LocalStorage,
   useNavigation,
 } from "@raycast/api";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -12,6 +11,7 @@ import { BrowseProfilesView } from "./browse-profiles";
 import { BrowseMaterialsView } from "./browse-materials";
 import { CompareProfilesView } from "./compare-profiles";
 import { CalculationHistoryView } from "./calculation-history";
+import { saveCalculationToHistory } from "./history";
 import {
   calculateQuickFromQuery,
   searchByDimension,
@@ -26,14 +26,6 @@ import { PROFILE_CATEGORY_LABELS } from "@ferroscale/metal-core/datasets";
 import type { ProfileCategory } from "@ferroscale/metal-core/datasets";
 
 const KG_TO_LBS = 2.20462;
-const MAX_HISTORY = 10;
-const HISTORY_KEY = "ferroscale-recent-calculations";
-
-interface HistoryEntry {
-  query: string;
-  result: QuickWeightResult;
-  timestamp: number;
-}
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -107,41 +99,6 @@ function resultToSummary(r: QuickWeightResult): string {
     lines.push(`Total price: ${r.totalPriceAmount.toFixed(2)} ${sym}`);
   }
   return lines.join("\n");
-}
-
-/* ------------------------------------------------------------------ */
-/*  History persistence                                                */
-/* ------------------------------------------------------------------ */
-
-function normalizeResult(r: QuickWeightResult): QuickWeightResult {
-  const totalWeightTonne = r.totalWeightTonne ?? r.totalWeightKg / 1000;
-  const linearDensityKgPerM =
-    r.linearDensityKgPerM ??
-    (r.lengthMm > 0 ? r.unitWeightKg / (r.lengthMm / 1000) : 0);
-  return { ...r, totalWeightTonne, linearDensityKgPerM };
-}
-
-async function loadHistory(): Promise<HistoryEntry[]> {
-  const raw = await LocalStorage.getItem<string>(HISTORY_KEY);
-  if (!raw) return [];
-  try {
-    const entries = JSON.parse(raw) as HistoryEntry[];
-    return entries.map((e) => ({ ...e, result: normalizeResult(e.result) }));
-  } catch {
-    return [];
-  }
-}
-
-async function saveToHistory(
-  query: string,
-  result: QuickWeightResult,
-): Promise<HistoryEntry[]> {
-  const existing = await loadHistory();
-  const entry: HistoryEntry = { query, result, timestamp: Date.now() };
-  const filtered = existing.filter((e) => e.query !== query);
-  const updated = [entry, ...filtered].slice(0, MAX_HISTORY);
-  await LocalStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
-  return updated;
 }
 
 /* ------------------------------------------------------------------ */
@@ -269,85 +226,316 @@ interface RefEntry {
 
 const QUICK_REF_ENTRIES: RefEntry[] = [
   // Bars
-  { section: "Bars", title: "rb", subtitle: "Round Bar  ·  D × L", example: "rb 30x6000", icon: Icon.Circle, iconColor: Color.Orange },
-  { section: "Bars", title: "sb", subtitle: "Square Bar  ·  A × L", example: "sb 30x6000", icon: Icon.Stop, iconColor: Color.Orange },
-  { section: "Bars", title: "fb", subtitle: "Flat Bar  ·  W × T × L  (or fb W×L t=T)", example: "fb 80x6000 t=8", icon: Icon.Minus, iconColor: Color.Orange },
+  {
+    section: "Bars",
+    title: "rb",
+    subtitle: "Round Bar  ·  D × L",
+    example: "rb 30x6000",
+    icon: Icon.Circle,
+    iconColor: Color.Orange,
+  },
+  {
+    section: "Bars",
+    title: "sb",
+    subtitle: "Square Bar  ·  A × L",
+    example: "sb 30x6000",
+    icon: Icon.Stop,
+    iconColor: Color.Orange,
+  },
+  {
+    section: "Bars",
+    title: "fb",
+    subtitle: "Flat Bar  ·  W × T × L  (or fb W×L t=T)",
+    example: "fb 80x6000 t=8",
+    icon: Icon.Minus,
+    iconColor: Color.Orange,
+  },
   // Tubes — Custom
-  { section: "Tubes — Custom", title: "chs  /  pipe", subtitle: "Circular Hollow Section  ·  OD × T × L", example: "chs 60.3x3.2x6000", icon: Icon.Circle, iconColor: Color.Blue },
-  { section: "Tubes — Custom", title: "shs", subtitle: "Square Hollow Section  ·  A × T × L", example: "shs 40x4x6000", icon: Icon.Stop, iconColor: Color.Blue },
-  { section: "Tubes — Custom", title: "rhs", subtitle: "Rectangular Hollow Section  ·  W × H × T × L", example: "rhs 80x60x5x6000", icon: Icon.AppWindowGrid2x2, iconColor: Color.Blue },
+  {
+    section: "Tubes — Custom",
+    title: "chs  /  pipe",
+    subtitle: "Circular Hollow Section  ·  OD × T × L",
+    example: "chs 60.3x3.2x6000",
+    icon: Icon.Circle,
+    iconColor: Color.Blue,
+  },
+  {
+    section: "Tubes — Custom",
+    title: "shs",
+    subtitle: "Square Hollow Section  ·  A × T × L",
+    example: "shs 40x4x6000",
+    icon: Icon.Stop,
+    iconColor: Color.Blue,
+  },
+  {
+    section: "Tubes — Custom",
+    title: "rhs",
+    subtitle: "Rectangular Hollow Section  ·  W × H × T × L",
+    example: "rhs 80x60x5x6000",
+    icon: Icon.AppWindowGrid2x2,
+    iconColor: Color.Blue,
+  },
   // Tubes — EN Standard
-  { section: "Tubes — EN Standard", title: "shss  /  shstd", subtitle: "SHS EN table  ·  A × T × L", example: "shss 40x4x6000 mat=s355", icon: Icon.Stop, iconColor: Color.Purple },
-  { section: "Tubes — EN Standard", title: "rhss  /  rhstd", subtitle: "RHS EN table  ·  W × H × T × L", example: "rhss 100x60x5x6000 qty=4", icon: Icon.AppWindowGrid2x2, iconColor: Color.Purple },
+  {
+    section: "Tubes — EN Standard",
+    title: "shss  /  shstd",
+    subtitle: "SHS EN table  ·  A × T × L",
+    example: "shss 40x4x6000 mat=s355",
+    icon: Icon.Stop,
+    iconColor: Color.Purple,
+  },
+  {
+    section: "Tubes — EN Standard",
+    title: "rhss  /  rhstd",
+    subtitle: "RHS EN table  ·  W × H × T × L",
+    example: "rhss 100x60x5x6000 qty=4",
+    icon: Icon.AppWindowGrid2x2,
+    iconColor: Color.Purple,
+  },
   // Structural
-  { section: "Structural (EN)", title: "ipe", subtitle: "IPE beam  ·  ipe <size>×<length>", example: "ipe 200x6000 mat=s355", icon: Icon.Building, iconColor: Color.Green },
-  { section: "Structural (EN)", title: "ipn", subtitle: "IPN beam  ·  ipn <size>×<length>", example: "ipn 200x6000", icon: Icon.Building, iconColor: Color.Green },
-  { section: "Structural (EN)", title: "hea  /  heb  /  hem", subtitle: "HEA / HEB / HEM beam  ·  <alias> <size>×<length>", example: "hea 200x6000 mat=s355", icon: Icon.Building, iconColor: Color.Green },
-  { section: "Structural (EN)", title: "upn  /  upe", subtitle: "UPN / UPE channel  ·  <alias> <size>×<length>", example: "upn 160x6000", icon: Icon.Building, iconColor: Color.Green },
-  { section: "Structural (EN)", title: "tee", subtitle: "T-section  ·  tee <size>×<length>", example: "tee 100x6000", icon: Icon.Building, iconColor: Color.Green },
+  {
+    section: "Structural (EN)",
+    title: "ipe",
+    subtitle: "IPE beam  ·  ipe <size>×<length>",
+    example: "ipe 200x6000 mat=s355",
+    icon: Icon.Building,
+    iconColor: Color.Green,
+  },
+  {
+    section: "Structural (EN)",
+    title: "ipn",
+    subtitle: "IPN beam  ·  ipn <size>×<length>",
+    example: "ipn 200x6000",
+    icon: Icon.Building,
+    iconColor: Color.Green,
+  },
+  {
+    section: "Structural (EN)",
+    title: "hea  /  heb  /  hem",
+    subtitle: "HEA / HEB / HEM beam  ·  <alias> <size>×<length>",
+    example: "hea 200x6000 mat=s355",
+    icon: Icon.Building,
+    iconColor: Color.Green,
+  },
+  {
+    section: "Structural (EN)",
+    title: "upn  /  upe",
+    subtitle: "UPN / UPE channel  ·  <alias> <size>×<length>",
+    example: "upn 160x6000",
+    icon: Icon.Building,
+    iconColor: Color.Green,
+  },
+  {
+    section: "Structural (EN)",
+    title: "tee",
+    subtitle: "T-section  ·  tee <size>×<length>",
+    example: "tee 100x6000",
+    icon: Icon.Building,
+    iconColor: Color.Green,
+  },
   // Angles
-  { section: "Angles", title: "angle  /  l", subtitle: "Custom angle  ·  legA × legB × T × L  (or a × T × L for equal legs)", example: "angle 50x50x5x6000", icon: Icon.Pin, iconColor: Color.Yellow },
-  { section: "Angles", title: "la  /  leq", subtitle: "EN 10056 equal-leg angle  ·  A × T × L", example: "la 80x8x6000 mat=s355", icon: Icon.Pin, iconColor: Color.Yellow },
+  {
+    section: "Angles",
+    title: "angle  /  l",
+    subtitle:
+      "Custom angle  ·  legA × legB × T × L  (or a × T × L for equal legs)",
+    example: "angle 50x50x5x6000",
+    icon: Icon.Pin,
+    iconColor: Color.Yellow,
+  },
+  {
+    section: "Angles",
+    title: "la  /  leq",
+    subtitle: "EN 10056 equal-leg angle  ·  A × T × L",
+    example: "la 80x8x6000 mat=s355",
+    icon: Icon.Pin,
+    iconColor: Color.Yellow,
+  },
   // Plates & Sheets
-  { section: "Plates & Sheets", title: "sheet  /  sht", subtitle: "Sheet  ·  W × T × L  or  W × L × T  or  W × L t=T", example: "sheet 1250x6000 t=2 qty=5", icon: Icon.AppWindowGrid2x2, iconColor: Color.Red },
-  { section: "Plates & Sheets", title: "plate  /  pl", subtitle: "Plate  ·  W × T × L  or  W × L t=T", example: "plate 1500x3000 t=10", icon: Icon.AppWindowGrid2x2, iconColor: Color.Red },
+  {
+    section: "Plates & Sheets",
+    title: "sheet  /  sht",
+    subtitle: "Sheet  ·  W × T × L  or  W × L × T  or  W × L t=T",
+    example: "sheet 1250x6000 t=2 qty=5",
+    icon: Icon.AppWindowGrid2x2,
+    iconColor: Color.Red,
+  },
+  {
+    section: "Plates & Sheets",
+    title: "plate  /  pl",
+    subtitle: "Plate  ·  W × T × L  or  W × L t=T",
+    example: "plate 1500x3000 t=10",
+    icon: Icon.AppWindowGrid2x2,
+    iconColor: Color.Red,
+  },
   // Flags
-  { section: "Flags", title: "qty=<n>", subtitle: "Quantity  ·  default: 1", example: "ipe 200x6000 qty=5", icon: Icon.Hashtag, iconColor: Color.Blue },
-  { section: "Flags", title: "mat=<grade>", subtitle: "Material  ·  default: s235  ·  e.g. s355, 304, alu, brass, ti", example: "shss 40x4x6000 mat=s355", icon: Icon.Tag, iconColor: Color.Orange },
-  { section: "Flags", title: "t=<thickness>", subtitle: "Thickness shorthand for fb / sheet / plate", example: "fb 80x6000 t=8", icon: Icon.Ruler, iconColor: Color.Yellow },
-  { section: "Flags", title: "area=<mm²>", subtitle: "Custom cross-section area — bypasses size table", example: "ipe 6000 area=3200 mat=s355", icon: Icon.BarChart, iconColor: Color.Green },
-  { section: "Flags", title: "dens=<kg/m³>", subtitle: "Custom density override", example: "rb 30x6000 dens=7900", icon: Icon.Gauge, iconColor: Color.Red },
-  { section: "Flags", title: "unit=<mm|cm|m|in|ft>", subtitle: "Fallback unit for bare numbers  ·  default: mm", example: "rb 30x6000 unit=mm", icon: Icon.Ruler, iconColor: Color.SecondaryText },
-  { section: "Flags", title: "price=<value>  currency=  basis=", subtitle: "Pricing  ·  currency: EUR|USD|GBP|PLN|BAM  ·  basis: kg|lb|m|ft|pc", example: "ipe 200x6000 price=0.85 currency=EUR basis=kg", icon: Icon.BankNote, iconColor: Color.Green },
+  {
+    section: "Flags",
+    title: "qty=<n>",
+    subtitle: "Quantity  ·  default: 1",
+    example: "ipe 200x6000 qty=5",
+    icon: Icon.Hashtag,
+    iconColor: Color.Blue,
+  },
+  {
+    section: "Flags",
+    title: "mat=<grade>",
+    subtitle: "Material  ·  default: s235  ·  e.g. s355, 304, alu, brass, ti",
+    example: "shss 40x4x6000 mat=s355",
+    icon: Icon.Tag,
+    iconColor: Color.Orange,
+  },
+  {
+    section: "Flags",
+    title: "t=<thickness>",
+    subtitle: "Thickness shorthand for fb / sheet / plate",
+    example: "fb 80x6000 t=8",
+    icon: Icon.Ruler,
+    iconColor: Color.Yellow,
+  },
+  {
+    section: "Flags",
+    title: "area=<mm²>",
+    subtitle: "Custom cross-section area — bypasses size table",
+    example: "ipe 6000 area=3200 mat=s355",
+    icon: Icon.BarChart,
+    iconColor: Color.Green,
+  },
+  {
+    section: "Flags",
+    title: "dens=<kg/m³>",
+    subtitle: "Custom density override",
+    example: "rb 30x6000 dens=7900",
+    icon: Icon.Gauge,
+    iconColor: Color.Red,
+  },
+  {
+    section: "Flags",
+    title: "unit=<mm|cm|m|in|ft>",
+    subtitle: "Fallback unit for bare numbers  ·  default: mm",
+    example: "rb 30x6000 unit=mm",
+    icon: Icon.Ruler,
+    iconColor: Color.SecondaryText,
+  },
+  {
+    section: "Flags",
+    title: "price=<value>  currency=  basis=",
+    subtitle:
+      "Pricing  ·  currency: EUR|USD|GBP|PLN|BAM  ·  basis: kg|lb|m|ft|pc",
+    example: "ipe 200x6000 price=0.85 currency=EUR basis=kg",
+    icon: Icon.BankNote,
+    iconColor: Color.Green,
+  },
   // Materials — Steel
-  { section: "Materials — Steel", title: "s235  /  s275  /  s355  /  s420  /  s460", subtitle: "Structural steel grades (7850 kg/m³)", example: "rb 30x6000 mat=s355", icon: Icon.Tag, iconColor: Color.SecondaryText },
+  {
+    section: "Materials — Steel",
+    title: "s235  /  s275  /  s355  /  s420  /  s460",
+    subtitle: "Structural steel grades (7850 kg/m³)",
+    example: "rb 30x6000 mat=s355",
+    icon: Icon.Tag,
+    iconColor: Color.SecondaryText,
+  },
   // Materials — Stainless
-  { section: "Materials — Stainless", title: "304  /  316  /  316l  /  duplex", subtitle: "Stainless steel grades (~7900–8000 kg/m³)", example: "rb 30x6000 mat=316", icon: Icon.Tag, iconColor: Color.SecondaryText },
+  {
+    section: "Materials — Stainless",
+    title: "304  /  316  /  316l  /  duplex",
+    subtitle: "Stainless steel grades (~7900–8000 kg/m³)",
+    example: "rb 30x6000 mat=316",
+    icon: Icon.Tag,
+    iconColor: Color.SecondaryText,
+  },
   // Materials — Aluminium
-  { section: "Materials — Aluminium", title: "alu  /  6060  /  6082  /  5754  /  7075", subtitle: "Aluminium alloys (~2700 kg/m³)", example: "rb 30x6000 mat=alu", icon: Icon.Tag, iconColor: Color.SecondaryText },
+  {
+    section: "Materials — Aluminium",
+    title: "alu  /  6060  /  6082  /  5754  /  7075",
+    subtitle: "Aluminium alloys (~2700 kg/m³)",
+    example: "rb 30x6000 mat=alu",
+    icon: Icon.Tag,
+    iconColor: Color.SecondaryText,
+  },
   // Materials — Other
-  { section: "Materials — Other", title: "copper  /  brass  /  bronze", subtitle: "Copper alloys (~8400–8900 kg/m³)", example: "rb 30x6000 mat=brass", icon: Icon.Tag, iconColor: Color.SecondaryText },
-  { section: "Materials — Other", title: "ti  /  tigrade5", subtitle: "Titanium (~4500 kg/m³)", example: "rb 30x6000 mat=ti", icon: Icon.Tag, iconColor: Color.SecondaryText },
-  { section: "Materials — Other", title: "castiron  /  gjl250", subtitle: "Cast iron (~7200 kg/m³)", example: "rb 30x6000 mat=castiron", icon: Icon.Tag, iconColor: Color.SecondaryText },
+  {
+    section: "Materials — Other",
+    title: "copper  /  brass  /  bronze",
+    subtitle: "Copper alloys (~8400–8900 kg/m³)",
+    example: "rb 30x6000 mat=brass",
+    icon: Icon.Tag,
+    iconColor: Color.SecondaryText,
+  },
+  {
+    section: "Materials — Other",
+    title: "ti  /  tigrade5",
+    subtitle: "Titanium (~4500 kg/m³)",
+    example: "rb 30x6000 mat=ti",
+    icon: Icon.Tag,
+    iconColor: Color.SecondaryText,
+  },
+  {
+    section: "Materials — Other",
+    title: "castiron  /  gjl250",
+    subtitle: "Cast iron (~7200 kg/m³)",
+    example: "rb 30x6000 mat=castiron",
+    icon: Icon.Tag,
+    iconColor: Color.SecondaryText,
+  },
   // Dimension search
-  { section: "Dimension Search", title: "?<mm>", subtitle: "Find all standard profile sizes with that nominal dimension", example: "?200", icon: Icon.MagnifyingGlass, iconColor: Color.Purple },
-  { section: "Dimension Search", title: "?<mm>x<mm>", subtitle: "Filter by two dimensions simultaneously", example: "?200x100", icon: Icon.MagnifyingGlass, iconColor: Color.Purple },
+  {
+    section: "Dimension Search",
+    title: "?<mm>",
+    subtitle: "Find all standard profile sizes with that nominal dimension",
+    example: "?200",
+    icon: Icon.MagnifyingGlass,
+    iconColor: Color.Purple,
+  },
+  {
+    section: "Dimension Search",
+    title: "?<mm>x<mm>",
+    subtitle: "Filter by two dimensions simultaneously",
+    example: "?200x100",
+    icon: Icon.MagnifyingGlass,
+    iconColor: Color.Purple,
+  },
 ];
 
 function AliasQuickReferenceView() {
   const sections = [...new Set(QUICK_REF_ENTRIES.map((e) => e.section))];
   return (
-    <List navigationTitle="Alias Quick Reference" searchBarPlaceholder="Search aliases, flags, materials…">
+    <List
+      navigationTitle="Alias Quick Reference"
+      searchBarPlaceholder="Search aliases, flags, materials…"
+    >
       {sections.map((section) => (
         <List.Section key={section} title={section}>
-          {QUICK_REF_ENTRIES.filter((e) => e.section === section).map((entry) => (
-            <List.Item
-              key={entry.title}
-              title={entry.title}
-              subtitle={entry.subtitle}
-              icon={{ source: entry.icon, tintColor: entry.iconColor }}
-              accessories={[{ text: entry.example, icon: Icon.Code }]}
-              actions={
-                <ActionPanel>
-                  <Action.CopyToClipboard
-                    content={entry.example}
-                    title="Copy Example"
-                    icon={Icon.Clipboard}
-                  />
-                  <Action.CopyToClipboard
-                    content={entry.title.split(/\s*\/\s*/)[0].trim()}
-                    title="Copy Alias"
-                    icon={Icon.Code}
-                  />
-                  <Action.CopyToClipboard
-                    content={QUICK_REFERENCE_MARKDOWN}
-                    title="Copy Full Reference as Markdown"
-                    icon={Icon.Document}
-                  />
-                </ActionPanel>
-              }
-            />
-          ))}
+          {QUICK_REF_ENTRIES.filter((e) => e.section === section).map(
+            (entry) => (
+              <List.Item
+                key={entry.title}
+                title={entry.title}
+                subtitle={entry.subtitle}
+                icon={{ source: entry.icon, tintColor: entry.iconColor }}
+                accessories={[{ text: entry.example, icon: Icon.Code }]}
+                actions={
+                  <ActionPanel>
+                    <Action.CopyToClipboard
+                      content={entry.example}
+                      title="Copy Example"
+                      icon={Icon.Clipboard}
+                    />
+                    <Action.CopyToClipboard
+                      content={entry.title.split(/\s*\/\s*/)[0].trim()}
+                      title="Copy Alias"
+                      icon={Icon.Code}
+                    />
+                    <Action.CopyToClipboard
+                      content={QUICK_REFERENCE_MARKDOWN}
+                      title="Copy Full Reference as Markdown"
+                      icon={Icon.Document}
+                    />
+                  </ActionPanel>
+                }
+              />
+            ),
+          )}
         </List.Section>
       ))}
     </List>
@@ -496,7 +684,7 @@ export default function Command() {
     clearTimeout(saveTimerRef.current);
     if (response?.ok) {
       saveTimerRef.current = setTimeout(() => {
-        saveToHistory(trimmedQuery, response.result);
+        void saveCalculationToHistory(trimmedQuery, response.result);
       }, 1500);
     }
     return () => clearTimeout(saveTimerRef.current);
@@ -532,7 +720,7 @@ export default function Command() {
               actions={
                 <ActionPanel>
                   <Action
-                    title="Open"
+                    title="Open Profile Browser"
                     icon={Icon.List}
                     onAction={() => push(<BrowseProfilesView />)}
                   />
@@ -546,7 +734,7 @@ export default function Command() {
               actions={
                 <ActionPanel>
                   <Action
-                    title="Open"
+                    title="Open Material Browser"
                     icon={Icon.Tag}
                     onAction={() => push(<BrowseMaterialsView />)}
                   />
@@ -560,7 +748,7 @@ export default function Command() {
               actions={
                 <ActionPanel>
                   <Action
-                    title="Open"
+                    title="Open Compare Tool"
                     icon={Icon.TwoArrowsClockwise}
                     onAction={() => push(<CompareProfilesView />)}
                   />
@@ -574,9 +762,11 @@ export default function Command() {
               actions={
                 <ActionPanel>
                   <Action
-                    title="Open"
+                    title="Open Calculation History"
                     icon={Icon.Clock}
-                    onAction={() => push(<CalculationHistoryView />)}
+                    onAction={() =>
+                      push(<CalculationHistoryView onRerun={handleCalculate} />)
+                    }
                   />
                 </ActionPanel>
               }

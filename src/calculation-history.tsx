@@ -7,57 +7,17 @@ import {
   Detail,
   Icon,
   List,
-  LocalStorage,
+  useNavigation,
 } from "@raycast/api";
 import { useCallback, useEffect, useState } from "react";
-import type { QuickWeightResult } from "@ferroscale/metal-core/quick";
+import {
+  clearCalculationHistory,
+  loadCalculationHistory,
+  removeCalculationHistoryEntry,
+  type HistoryEntry,
+} from "./history";
 
 const KG_TO_LBS = 2.20462;
-const HISTORY_KEY = "ferroscale-recent-calculations";
-
-interface HistoryEntry {
-  query: string;
-  result: QuickWeightResult;
-  timestamp: number;
-}
-
-/* ------------------------------------------------------------------ */
-/*  Persistence helpers                                                */
-/* ------------------------------------------------------------------ */
-
-/** Backfill fields added after the initial release so old LocalStorage
- *  entries don't crash display code that expects them to be present. */
-function normalizeResult(r: QuickWeightResult): QuickWeightResult {
-  const totalWeightTonne = r.totalWeightTonne ?? r.totalWeightKg / 1000;
-  const linearDensityKgPerM =
-    r.linearDensityKgPerM ??
-    (r.lengthMm > 0 ? r.unitWeightKg / (r.lengthMm / 1000) : 0);
-  return { ...r, totalWeightTonne, linearDensityKgPerM };
-}
-
-async function loadHistory(): Promise<HistoryEntry[]> {
-  const raw = await LocalStorage.getItem<string>(HISTORY_KEY);
-  if (!raw) return [];
-  try {
-    const entries = JSON.parse(raw) as HistoryEntry[];
-    return entries.map((e) => ({ ...e, result: normalizeResult(e.result) }));
-  } catch {
-    return [];
-  }
-}
-
-async function saveHistory(entries: HistoryEntry[]): Promise<void> {
-  await LocalStorage.setItem(HISTORY_KEY, JSON.stringify(entries));
-}
-
-async function removeEntry(
-  entries: HistoryEntry[],
-  timestamp: number,
-): Promise<HistoryEntry[]> {
-  const updated = entries.filter((e) => e.timestamp !== timestamp);
-  await saveHistory(updated);
-  return updated;
-}
 
 /* ------------------------------------------------------------------ */
 /*  Formatting helpers                                                 */
@@ -271,16 +231,19 @@ function EntryDetail({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Main command                                                       */
-/* ------------------------------------------------------------------ */
+interface CalculationHistoryViewProps {
+  onRerun?: (query: string) => void;
+}
 
-export function CalculationHistoryView() {
+export function CalculationHistoryView({
+  onRerun,
+}: CalculationHistoryViewProps) {
+  const { pop } = useNavigation();
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    loadHistory().then((entries) => {
+    loadCalculationHistory().then((entries) => {
       setHistory(entries);
       setIsLoading(false);
     });
@@ -288,7 +251,7 @@ export function CalculationHistoryView() {
 
   const handleDelete = useCallback(
     async (timestamp: number) => {
-      const updated = await removeEntry(history, timestamp);
+      const updated = await removeCalculationHistoryEntry(history, timestamp);
       setHistory(updated);
     },
     [history],
@@ -304,10 +267,19 @@ export function CalculationHistoryView() {
       },
     });
     if (confirmed) {
-      await LocalStorage.removeItem(HISTORY_KEY);
+      await clearCalculationHistory();
       setHistory([]);
     }
   }, []);
+
+  const handleRerun = useCallback(
+    (query: string) => {
+      if (!onRerun) return;
+      onRerun(query);
+      pop();
+    },
+    [onRerun, pop],
+  );
 
   const buildExportCsv = useCallback(() => {
     const header =
@@ -384,6 +356,13 @@ export function CalculationHistoryView() {
               accessories={accessories as List.Item.Accessory[]}
               actions={
                 <ActionPanel>
+                  {onRerun && (
+                    <Action
+                      title="Re-Run in Ferroscale"
+                      icon={Icon.ArrowClockwise}
+                      onAction={() => handleRerun(entry.query)}
+                    />
+                  )}
                   <Action.Push
                     title="View Details"
                     icon={Icon.Sidebar}

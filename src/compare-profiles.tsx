@@ -175,11 +175,11 @@ function ComparisonDetail({
             />
             <Action.CopyToClipboard
               content={`${resultA.totalWeightKg.toFixed(3)} kg`}
-              title="Copy a Total Weight"
+              title="Copy First Total Weight"
             />
             <Action.CopyToClipboard
               content={`${resultB.totalWeightKg.toFixed(3)} kg`}
-              title="Copy B Total Weight"
+              title="Copy Second Total Weight"
             />
           </ActionPanel.Section>
         </ActionPanel>
@@ -222,7 +222,7 @@ function ResultRow({
           />
           {onChangeA && (
             <Action
-              title="Change Profile A"
+              title="Change Locked Query"
               icon={Icon.ArrowLeft}
               onAction={onChangeA}
             />
@@ -246,7 +246,9 @@ export function CompareProfilesView() {
   const [queryA, setQueryA] = useState("");
   const [queryB, setQueryB] = useState("");
   const [lockedQueryA, setLockedQueryA] = useState("");
-  const [lockedResultA, setLockedResultA] = useState<QuickWeightResult | null>(null);
+  const [lockedResultA, setLockedResultA] = useState<QuickWeightResult | null>(
+    null,
+  );
 
   const activeQuery = phase === "entering_a" ? queryA : queryB;
 
@@ -306,7 +308,7 @@ export function CompareProfilesView() {
             actions={
               <ActionPanel>
                 <Action
-                  title="Change Profile A"
+                  title="Change Locked Query"
                   icon={Icon.ArrowLeft}
                   onAction={handleChangeA}
                 />
@@ -317,9 +319,7 @@ export function CompareProfilesView() {
       ) : null}
 
       {/* ---- Active profile input section ---- */}
-      <List.Section
-        title={phase === "entering_a" ? "Profile A" : "Profile B"}
-      >
+      <List.Section title={phase === "entering_a" ? "Profile A" : "Profile B"}>
         {/* Empty state */}
         {!activeQuery.trim() ? (
           <List.Item
@@ -329,7 +329,10 @@ export function CompareProfilesView() {
                 : "Type a query to compare against A"
             }
             subtitle="e.g. ipe 200x6000 mat=s355  ·  shss 80x5x6000  ·  rb 30x6000"
-            icon={{ source: Icon.MagnifyingGlass, tintColor: Color.SecondaryText }}
+            icon={{
+              source: Icon.MagnifyingGlass,
+              tintColor: Color.SecondaryText,
+            }}
           />
         ) : null}
 
@@ -350,7 +353,9 @@ export function CompareProfilesView() {
               phase === "entering_a" ? "Lock Profile A" : "Compare"
             }
             primaryActionIcon={
-              phase === "entering_a" ? Icon.LockUnlocked : Icon.TwoArrowsClockwise
+              phase === "entering_a"
+                ? Icon.LockUnlocked
+                : Icon.TwoArrowsClockwise
             }
             primaryAction={phase === "entering_a" ? handleLockA : handleCompare}
             onChangeA={phase === "entering_b" ? handleChangeA : undefined}
@@ -376,7 +381,7 @@ export function CompareProfilesView() {
               actions={
                 <ActionPanel>
                   <Action
-                    title="Use as Profile A"
+                    title="Try Example Query"
                     icon={Icon.ArrowRight}
                     onAction={() => setQueryA(query)}
                   />
