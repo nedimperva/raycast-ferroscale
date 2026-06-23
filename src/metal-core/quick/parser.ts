@@ -60,10 +60,13 @@ const MANUAL_ALIASES: Record<string, ManualAliasConfig> = {
   pipe: { profileId: "pipe", canonicalAlias: "chs" },
   // Bars
   rb: { profileId: "round_bar", canonicalAlias: "rb" },
+  rnd: { profileId: "round_bar", canonicalAlias: "rb" },
   roundbar: { profileId: "round_bar", canonicalAlias: "rb" },
   sb: { profileId: "square_bar", canonicalAlias: "sb" },
+  sq: { profileId: "square_bar", canonicalAlias: "sb" },
   squarebar: { profileId: "square_bar", canonicalAlias: "sb" },
   fb: { profileId: "flat_bar", canonicalAlias: "fb" },
+  flt: { profileId: "flat_bar", canonicalAlias: "fb" },
   flatbar: { profileId: "flat_bar", canonicalAlias: "fb" },
   // Manual angle (custom leg dimensions)
   angle: { profileId: "angle", canonicalAlias: "angle" },
@@ -73,9 +76,13 @@ const MANUAL_ALIASES: Record<string, ManualAliasConfig> = {
   sht: { profileId: "sheet", canonicalAlias: "sheet" },
   plate: { profileId: "plate", canonicalAlias: "plate" },
   pl: { profileId: "plate", canonicalAlias: "plate" },
+  plt: { profileId: "plate", canonicalAlias: "plate" },
   chequered: { profileId: "chequered_plate", canonicalAlias: "chequered" },
+  chq: { profileId: "chequered_plate", canonicalAlias: "chequered" },
   expanded: { profileId: "expanded_metal", canonicalAlias: "expanded" },
+  xpm: { profileId: "expanded_metal", canonicalAlias: "expanded" },
   corrugated: { profileId: "corrugated_sheet", canonicalAlias: "corrugated" },
+  corr: { profileId: "corrugated_sheet", canonicalAlias: "corrugated" },
 };
 
 const STANDARD_ALIASES: Record<string, StandardAliasConfig> = {
@@ -228,6 +235,10 @@ function normalizeSizeToken(value: string): string {
   return normalizeSpec(value).replace(/[^a-z0-9.x]/g, "");
 }
 
+function normalizeCommandUnitToken(value: string): string {
+  return value.toLowerCase().replace(",", ".");
+}
+
 function parsePositiveNumber(raw: string): number | undefined {
   const parsed = Number(raw.replace(",", "."));
   if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
@@ -244,6 +255,140 @@ function extractTrailingUnit(
     }
   }
   return { value: raw, unit: fallbackUnit };
+}
+
+function allAliases(): string[] {
+  return [
+    ...Object.keys(MANUAL_ALIASES),
+    ...Object.keys(STANDARD_ALIASES),
+  ].sort((a, b) => b.length - a.length);
+}
+
+function findAliasToken(token: string): {
+  alias: string;
+  body: string;
+  manual?: ManualAliasConfig;
+  standard?: StandardAliasConfig;
+} | null {
+  const normalized = normalizeSpec(token);
+  const exactManual = MANUAL_ALIASES[normalizeAlias(normalized)];
+  if (exactManual) {
+    return {
+      alias: exactManual.canonicalAlias,
+      body: "",
+      manual: exactManual,
+    };
+  }
+  const exactStandard = STANDARD_ALIASES[normalizeAlias(normalized)];
+  if (exactStandard) {
+    return {
+      alias: exactStandard.canonicalAlias,
+      body: "",
+      standard: exactStandard,
+    };
+  }
+
+  for (const aliasKey of allAliases()) {
+    if (!normalized.startsWith(aliasKey)) continue;
+    const body = normalized.slice(aliasKey.length);
+    if (!body || !/\d/.test(body)) continue;
+    const manual = MANUAL_ALIASES[aliasKey];
+    const standard = STANDARD_ALIASES[aliasKey];
+    return {
+      alias: (manual ?? standard)?.canonicalAlias ?? aliasKey,
+      body,
+      manual,
+      standard,
+    };
+  }
+
+  return null;
+}
+
+function parseCommandLengthMm(token: string): number | null {
+  const normalized = normalizeCommandUnitToken(token);
+  const match = normalized.match(/^(\d+(?:\.\d+)?)(mm|cm|m|in|ft)?$/);
+  if (!match) return null;
+
+  const value = Number(match[1]);
+  if (!Number.isFinite(value) || value <= 0) return null;
+
+  if (match[2]) {
+    return toMm(value, match[2] as LengthUnit);
+  }
+
+  // Compact Command has no settings store in Raycast. Interpret small bare
+  // separate lengths as metres ("hea120 6"), larger ones as millimetres.
+  return value <= 100 ? toMm(value, "m") : value;
+}
+
+function normalizeCommandPriceToken(token: string): string[] | null {
+  const normalized = normalizeCommandUnitToken(token);
+  const explicit = normalized.match(
+    /^@?(\d+(?:\.\d+)?)\/(kg|lb|m|ft|pc|pcs|piece)$/,
+  );
+  if (explicit) {
+    const unit =
+      explicit[2] === "pcs" || explicit[2] === "piece" ? "pc" : explicit[2];
+    return [`price=${explicit[1]}`, `basis=${unit}`];
+  }
+
+  const valueOnly = normalized.match(/^@(\d+(?:\.\d+)?)$/);
+  if (valueOnly) return [`price=${valueOnly[1]}`];
+
+  return null;
+}
+
+function normalizeCompactCommandQuery(query: string): string {
+  const normalizedFlagsQuery = normalizeFlagAssignments(query);
+  const tokens = normalizedFlagsQuery.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return query;
+
+  const aliasToken = findAliasToken(tokens[0]);
+  if (!aliasToken) return normalizedFlagsQuery;
+
+  const geometryParts: string[] = [];
+  const flags: string[] = [];
+  if (aliasToken.body) geometryParts.push(aliasToken.body);
+
+  for (const token of tokens.slice(1)) {
+    const price = normalizeCommandPriceToken(token);
+    if (price) {
+      flags.push(...price);
+      continue;
+    }
+
+    const qty = token.match(/^[x×*](\d+(?:[.,]\d+)?)$/i);
+    if (qty) {
+      flags.push(`qty=${qty[1].replace(",", ".")}`);
+      continue;
+    }
+
+    if (token.includes("=")) {
+      flags.push(token);
+      continue;
+    }
+
+    const material = MATERIAL_ALIASES[normalizeAlias(token)];
+    if (material) {
+      flags.push(`mat=${token}`);
+      continue;
+    }
+
+    geometryParts.push(token);
+  }
+
+  if (geometryParts.length >= 2) {
+    const lastIndex = geometryParts.length - 1;
+    const maybeLength = parseCommandLengthMm(geometryParts[lastIndex]);
+    if (maybeLength != null) {
+      geometryParts[lastIndex] = `${maybeLength}mm`;
+    }
+  }
+
+  const geometry =
+    geometryParts.length > 1 ? geometryParts.join("x") : geometryParts[0];
+  return [aliasToken.alias, geometry, ...flags].filter(Boolean).join(" ");
 }
 
 function resolveMaterialGradeId(raw?: string): string | undefined {
@@ -818,7 +963,9 @@ function parseStandardGeometry(
     })
     .sort((a, b) => b.key.length - a.key.length);
 
-  let match: { sizeId: string; lengthMm: number } | undefined;
+  let match:
+    | { sizeId: string; canonicalSize: string; lengthMm: number }
+    | undefined;
   for (const candidate of candidates) {
     if (!body.startsWith(`${candidate.key}x`)) continue;
 
@@ -831,8 +978,16 @@ function parseStandardGeometry(
         "Length must be a positive number.",
       );
     }
+    let canonicalSize = candidate.key;
+    if (canonicalSize.startsWith(alias)) {
+      canonicalSize = canonicalSize.slice(alias.length);
+    }
+    if (profile.id === "tee_en" && canonicalSize.startsWith("t")) {
+      canonicalSize = canonicalSize.slice(1);
+    }
     match = {
       sizeId: candidate.sizeId,
+      canonicalSize,
       lengthMm: toMm(lengthValue, extracted.unit),
     };
     break;
@@ -852,7 +1007,7 @@ function parseStandardGeometry(
   return {
     selectedSizeId: match.sizeId,
     lengthMm: match.lengthMm,
-    canonicalSpec: `${match.sizeId}x${match.lengthMm}mm`,
+    canonicalSpec: `${match.canonicalSize}x${match.lengthMm}mm`,
   };
 }
 
@@ -907,7 +1062,8 @@ export function parseQuickQuery(rawQuery: string): QuickParseResponse {
     };
   }
 
-  const normalizedFlagsQuery = normalizeFlagAssignments(trimmed);
+  const compactNormalizedQuery = normalizeCompactCommandQuery(trimmed);
+  const normalizedFlagsQuery = normalizeFlagAssignments(compactNormalizedQuery);
   const rawTokens = normalizedFlagsQuery.split(/\s+/).filter(Boolean);
   const { positional, parsed } = parseFlags(rawTokens, issues);
 

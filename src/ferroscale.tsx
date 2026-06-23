@@ -16,10 +16,13 @@ import {
   calculateQuickFromQuery,
   searchByDimension,
   parseDimSearchQuery,
+  buildQuickSuggestions,
+  applyQuickSuggestion,
 } from "@ferroscale/metal-core/quick";
 import type {
   QuickWeightResult,
   DimensionMatch,
+  QuickSuggestionItem,
 } from "@ferroscale/metal-core/quick";
 
 import { PROFILE_CATEGORY_LABELS } from "@ferroscale/metal-core/datasets";
@@ -559,6 +562,78 @@ function AliasQuickReferenceActions() {
 }
 
 /* ------------------------------------------------------------------ */
+/*  Command suggestions                                                */
+/* ------------------------------------------------------------------ */
+
+function suggestionIcon(kind: QuickSuggestionItem["kind"]): {
+  source: Icon;
+  tintColor: Color;
+} {
+  switch (kind) {
+    case "profile":
+      return { source: Icon.Building, tintColor: Color.Blue };
+    case "size":
+      return { source: Icon.Ruler, tintColor: Color.Green };
+    case "length":
+      return { source: Icon.ArrowRight, tintColor: Color.Green };
+    case "quantity":
+      return { source: Icon.Hashtag, tintColor: Color.Purple };
+    case "material":
+      return { source: Icon.Tag, tintColor: Color.Orange };
+    case "price":
+      return { source: Icon.BankNote, tintColor: Color.Yellow };
+    case "dimension-search":
+      return { source: Icon.MagnifyingGlass, tintColor: Color.Purple };
+    case "example":
+    default:
+      return { source: Icon.Text, tintColor: Color.SecondaryText };
+  }
+}
+
+function CommandSuggestions({
+  suggestions,
+  onInsert,
+}: {
+  suggestions: QuickSuggestionItem[];
+  onInsert: (suggestion: QuickSuggestionItem) => void;
+}) {
+  if (suggestions.length === 0) return null;
+
+  return (
+    <List.Section title="Suggestions">
+      {suggestions.map((suggestion) => (
+        <List.Item
+          key={`${suggestion.kind}-${suggestion.insertText}-${suggestion.title}`}
+          title={suggestion.title}
+          subtitle={suggestion.subtitle}
+          icon={suggestionIcon(suggestion.kind)}
+          accessories={
+            suggestion.accessory
+              ? [{ text: suggestion.accessory, icon: Icon.Code }]
+              : [{ text: suggestion.insertText, icon: Icon.ArrowRight }]
+          }
+          actions={
+            <ActionPanel>
+              <Action
+                title="Insert Suggestion"
+                icon={Icon.ArrowRight}
+                onAction={() => onInsert(suggestion)}
+              />
+              <Action.CopyToClipboard
+                content={suggestion.insertText}
+                title="Copy Suggestion"
+                icon={Icon.Clipboard}
+              />
+              <AliasQuickReferenceActions />
+            </ActionPanel>
+          }
+        />
+      ))}
+    </List.Section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Dimension search results section                                   */
 /* ------------------------------------------------------------------ */
 
@@ -670,6 +745,10 @@ export default function Command() {
     () => (dims !== null ? searchByDimension(dims) : []),
     [dims],
   );
+  const suggestions = useMemo(
+    () => (dims === null ? buildQuickSuggestions(query) : []),
+    [query, dims],
+  );
 
   // Calculator mode — only when not in dim-search mode
   const response = useMemo(() => {
@@ -694,6 +773,10 @@ export default function Command() {
     setQuery(q);
   }, []);
 
+  const handleSuggestion = useCallback((suggestion: QuickSuggestionItem) => {
+    setQuery(applyQuickSuggestion(suggestion));
+  }, []);
+
   return (
     <List
       searchBarPlaceholder="ipe 200x6000 mat=s355  ·  shss 40x4x6000  ·  ?40 to find all 40 mm profiles"
@@ -706,6 +789,13 @@ export default function Command() {
           dims={dims}
           matches={dimMatches}
           onCalculate={handleCalculate}
+        />
+      ) : null}
+
+      {dims === null ? (
+        <CommandSuggestions
+          suggestions={suggestions}
+          onInsert={handleSuggestion}
         />
       ) : null}
 
