@@ -86,15 +86,15 @@ Dimensions and length are separated by `x`. A trailing unit suffix (`mm`, `cm`, 
 | `angle` / `l`         | Angle - custom dimensions    | `legA x legB x T x L` or `A x T x L`    |
 | `la` / `leq` / `stda` | Equal-leg angle (EN 10056-1) | `A x T x L`, for example `la 80x8x6000` |
 
-#### Sheets and Plates
+#### Plate
 
-| Alias           | Profile          | Dimension Order                          |
-| --------------- | ---------------- | ---------------------------------------- |
-| `sheet` / `sht` | Sheet            | `W x T x L`, `W x L x T`, or `W x L t=T` |
-| `plate` / `pl`  | Plate            | same as sheet                            |
-| `chequered`     | Chequered plate  | `W x T x L`                              |
-| `expanded`      | Expanded metal   | `W x T x L`                              |
-| `corrugated`    | Corrugated sheet | `W x T x L`                              |
+| Alias                  | Profile                | Dimension Order                                                           |
+| ---------------------- | ---------------------- | ------------------------------------------------------------------------- |
+| `plate` / `pl` / `plt` | Plate                  | `W x L x T` or `W x L t=T`; thin panels route to sheet data automatically |
+| `sheet` / `sht`        | Plate-compatible alias | Backward compatible; routed automatically                                 |
+| `chequered`            | Chequered plate        | `W x T x L`                                                               |
+| `expanded`             | Expanded metal         | `W x T x L`                                                               |
+| `corrugated`           | Corrugated sheet       | `W x T x L`                                                               |
 
 ### Flags
 
@@ -104,7 +104,7 @@ Dimensions and length are separated by `x`. A trailing unit suffix (`mm`, `cm`, 
 | `mat=<grade>`     | `steel-s235jr` | Material grade or alias                               |
 | `dens=<kg/m3>`    | none           | Custom density override (takes precedence over `mat`) |
 | `unit=<mm         | cm             | m                                                     | in  | ft>` | `mm` | Fallback unit for bare numbers without an inline suffix |
-| `t=<value>`       | none           | Thickness shorthand for `fb`, `sheet`, `plate`        |
+| `t=<value>`       | none           | Thickness shorthand for `fb` and `plate`              |
 | `area=<mm2>`      | none           | Custom cross-section area override                    |
 | `price=<value>`   | none           | Unit price amount                                     |
 | `currency=<code>` | `EUR`          | Pricing currency: `EUR`, `USD`, `GBP`, `PLN`, `BAM`   |

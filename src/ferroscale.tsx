@@ -172,18 +172,18 @@ const QUICK_REFERENCE_MARKDOWN = [
   "- `angle` / `l`: `legA × legB × T × L`  *(custom, or `a × T × L` for equal legs)*",
   "- `la` / `leq`: `A × T × L`  *(EN 10056 standard sizes, e.g. `la 50x5x6000`)*",
   "",
-  "## Sheet and Plate",
-  "- `sheet` / `sht`",
-  "- `plate` / `pl`",
-  "- Orders accepted: `W × T × L` or `W × L × T`",
-  "- Or use `t=` flag: `sheet 1250x6000 t=2`",
+  "## Plate",
+  "- `plate` / `pl` / `plt`",
+  "- `sheet` / `sht` still work, but route through Plate automatically",
+  "- Preferred order: `W × L × T`",
+  "- Or use `t=` flag: `plate 1250x6000 t=2`",
   "",
   "## Flags",
   "- `qty=<n>` — quantity (default: 1)",
   "- `mat=<grade>` — material (default: steel-s235jr)",
   "- `dens=<kg/m³>` — custom density override",
   "- `unit=<mm|cm|m|in|ft>` — fallback unit for bare numbers",
-  "- `t=<thickness>` — thickness shorthand for fb / sheet / plate",
+  "- `t=<thickness>` — thickness shorthand for fb / plate",
   "- `area=<mm²>` — custom cross-section area (bypasses size table)",
   "- `price=<value>` — unit price amount",
   "- `currency=<EUR|USD|GBP|PLN|BAM>` — pricing currency (default: EUR)",
@@ -207,7 +207,7 @@ const QUICK_REFERENCE_MARKDOWN = [
   "- `rhss 100x60x5x6000 qty=4`",
   "- `chs 60.3x3.2x3000 qty=4`",
   "- `la 80x8x6000 mat=s355`",
-  "- `sheet 1250x3000x2 qty=5`",
+  "- `plate 1250x3000x2 qty=5`",
   "- `plate 1500x3000 t=10`",
   "- `fb 80x6000 t=8 price=1.5 currency=EUR`",
   "- `ipe 200x6000 mat=s355 price=0.85`",
@@ -357,17 +357,10 @@ const QUICK_REF_ENTRIES: RefEntry[] = [
   // Plates & Sheets
   {
     section: "Plates & Sheets",
-    title: "sheet  /  sht",
-    subtitle: "Sheet  ·  W × T × L  or  W × L × T  or  W × L t=T",
-    example: "sheet 1250x6000 t=2 qty=5",
-    icon: Icon.AppWindowGrid2x2,
-    iconColor: Color.Red,
-  },
-  {
-    section: "Plates & Sheets",
-    title: "plate  /  pl",
-    subtitle: "Plate  ·  W × T × L  or  W × L t=T",
-    example: "plate 1500x3000 t=10",
+    title: "plate  /  pl  /  plt",
+    subtitle:
+      "Unified plate entry · routes thin panels to sheet data automatically",
+    example: "plate 1250x3000x2 qty=5",
     icon: Icon.AppWindowGrid2x2,
     iconColor: Color.Red,
   },
@@ -391,7 +384,7 @@ const QUICK_REF_ENTRIES: RefEntry[] = [
   {
     section: "Flags",
     title: "t=<thickness>",
-    subtitle: "Thickness shorthand for fb / sheet / plate",
+    subtitle: "Thickness shorthand for fb / plate",
     example: "fb 80x6000 t=8",
     icon: Icon.Ruler,
     iconColor: Color.Yellow,
@@ -937,8 +930,8 @@ export default function Command() {
               icon={{ source: Icon.Pin, tintColor: Color.Yellow }}
             />
             <List.Item
-              title="Sheets and Plates"
-              subtitle="sheet / plate  W×T×L  or  W×L×T  or  W×L t=T"
+              title="Plate"
+              subtitle="plate W×L×T or W×L t=T · thin panels route automatically"
               icon={{ source: Icon.AppWindowGrid2x2, tintColor: Color.Red }}
             />
           </List.Section>
@@ -956,7 +949,7 @@ export default function Command() {
             />
             <List.Item
               title="t=<thickness>"
-              subtitle="Thickness shorthand for fb, sheet, plate (e.g. t=8 or t=8mm)"
+              subtitle="Thickness shorthand for fb and plate (e.g. t=8 or t=8mm)"
               icon={{ source: Icon.Ruler, tintColor: Color.Yellow }}
             />
             <List.Item

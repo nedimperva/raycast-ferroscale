@@ -33,6 +33,7 @@ const SUPPORTED_CURRENCIES: CurrencyCode[] = [
   "PLN",
   "BAM",
 ];
+const PLATE_THICKNESS_THRESHOLD_MM = 6;
 
 /* ------------------------------------------------------------------ */
 /*  Alias tables                                                       */
@@ -71,9 +72,9 @@ const MANUAL_ALIASES: Record<string, ManualAliasConfig> = {
   // Manual angle (custom leg dimensions)
   angle: { profileId: "angle", canonicalAlias: "angle" },
   l: { profileId: "angle", canonicalAlias: "angle" },
-  // Plates & sheets
-  sheet: { profileId: "sheet", canonicalAlias: "sheet" },
-  sht: { profileId: "sheet", canonicalAlias: "sheet" },
+  // Plate is the user-facing family; sheet/plate backing profile is routed by thickness.
+  sheet: { profileId: "plate", canonicalAlias: "plate" },
+  sht: { profileId: "plate", canonicalAlias: "plate" },
   plate: { profileId: "plate", canonicalAlias: "plate" },
   pl: { profileId: "plate", canonicalAlias: "plate" },
   plt: { profileId: "plate", canonicalAlias: "plate" },
@@ -190,6 +191,7 @@ interface ParsedManualGeometry {
   manualDimensionsMm: Partial<Record<DimensionKey, number>>;
   lengthMm: number;
   canonicalSpec: string;
+  routedProfileId?: ProfileId;
 }
 
 interface ParsedStandardGeometry {
@@ -649,53 +651,79 @@ function parseFlags(
 /*  Sheet / plate triplet resolver                                     */
 /* ------------------------------------------------------------------ */
 
-function resolveSheetPlateTriplet(
+function panelProfileIdForThickness(thicknessMm: number): ProfileId {
+  return thicknessMm <= PLATE_THICKNESS_THRESHOLD_MM ? "sheet" : "plate";
+}
+
+function panelCandidateFits(
+  widthMm: number,
+  thicknessMm: number,
   profileId: ProfileId,
-  values: number[],
-  unit: LengthUnit,
-): { width: number; thickness: number; length: number } | QuickParseIssue {
+): boolean {
   const profile = getProfileById(profileId);
-  if (!profile || profile.mode !== "manual") {
-    return createIssue(
-      "query",
-      "invalid_profile",
-      "Could not resolve sheet/plate profile constraints.",
-    );
-  }
+  if (!profile || profile.mode !== "manual") return false;
   const widthDef = profile.dimensions.find((d) => d.key === "width");
   const thicknessDef = profile.dimensions.find((d) => d.key === "thickness");
-  if (!widthDef || !thicknessDef) {
-    return createIssue(
-      "query",
-      "invalid_profile",
-      "Missing sheet/plate dimension rules.",
-    );
-  }
+  if (!widthDef || !thicknessDef) return false;
 
-  const fitsWidth = (v: number) => {
-    const mm = toMm(v, unit);
-    return mm >= widthDef.minMm && mm <= widthDef.maxMm;
-  };
-  const fitsThickness = (v: number) => {
-    const mm = toMm(v, unit);
-    return mm >= thicknessDef.minMm && mm <= thicknessDef.maxMm;
-  };
-
-  const candidates = [
-    { width: values[0], thickness: values[1], length: values[2] },
-    { width: values[0], thickness: values[2], length: values[1] },
-  ];
-  const valid = candidates.filter(
-    (c) => fitsWidth(c.width) && fitsThickness(c.thickness),
+  return (
+    widthMm >= widthDef.minMm &&
+    widthMm <= widthDef.maxMm &&
+    thicknessMm >= thicknessDef.minMm &&
+    thicknessMm <= thicknessDef.maxMm
   );
+}
+
+function resolvePanelTriplet(
+  values: number[],
+  unit: LengthUnit,
+):
+  | {
+      width: number;
+      thickness: number;
+      length: number;
+      routedProfileId: ProfileId;
+    }
+  | QuickParseIssue {
+  const candidates = [
+    // Command convention: width x length x thickness.
+    { width: values[0], thickness: values[2], length: values[1] },
+    // Backward compatibility: width x thickness x length.
+    { width: values[0], thickness: values[1], length: values[2] },
+  ];
+  const valid = candidates
+    .map((candidate) => {
+      const widthMm = toMm(candidate.width, unit);
+      const thicknessMm = toMm(candidate.thickness, unit);
+      const routedProfileId = panelProfileIdForThickness(thicknessMm);
+      return {
+        ...candidate,
+        widthMm,
+        thicknessMm,
+        routedProfileId,
+      };
+    })
+    .filter((candidate) =>
+      panelCandidateFits(
+        candidate.widthMm,
+        candidate.thicknessMm,
+        candidate.routedProfileId,
+      ),
+    );
   if (valid.length === 0) {
     return createIssue(
       "query",
       "invalid_sheet_plate",
-      "Expected width × thickness × length or width × length × thickness.",
+      "Expected plate as width x length x thickness, or width x thickness x length.",
     );
   }
-  return valid[0];
+  const first = valid[0];
+  return {
+    width: first.width,
+    thickness: first.thickness,
+    length: first.length,
+    routedProfileId: first.routedProfileId,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -724,6 +752,7 @@ function parseManualGeometry(
   const values = numbers as number[];
   const dimensions: Partial<Record<DimensionKey, number>> = {};
   let lengthValue = 0;
+  let routedProfileId: ProfileId | undefined;
 
   /* ---- Square Hollow Section (manual custom) ---- */
   if (profileId === "square_hollow") {
@@ -826,29 +855,27 @@ function parseManualGeometry(
       );
     }
 
-    /* ---- Sheet / Plate ---- */
+    /* ---- Plate / Sheet backing profile routed by thickness ---- */
   } else if (profileId === "sheet" || profileId === "plate") {
     // Allow t= flag: spec is just width × length
     if (thicknessOverrideMm != null && values.length === 2) {
       dimensions.width = toMm(values[0], extracted.unit);
       dimensions.thickness = thicknessOverrideMm;
       lengthValue = values[1];
+      routedProfileId = panelProfileIdForThickness(thicknessOverrideMm);
     } else if (values.length === 3) {
-      const resolved = resolveSheetPlateTriplet(
-        profileId,
-        values,
-        extracted.unit,
-      );
+      const resolved = resolvePanelTriplet(values, extracted.unit);
       if ("code" in resolved) return resolved;
       dimensions.width = toMm(resolved.width, extracted.unit);
       dimensions.thickness = toMm(resolved.thickness, extracted.unit);
       lengthValue = resolved.length;
+      routedProfileId = resolved.routedProfileId;
     } else {
       return createIssue(
         "query",
         "invalid_sheet_plate",
         thicknessOverrideMm == null
-          ? "Expected width × thickness × length (or width × length × thickness, or add t=<thickness>)."
+          ? "Expected width × length × thickness (or width × thickness × length, or add t=<thickness>)."
           : "Expected width × length when t= is supplied.",
       );
     }
@@ -900,6 +927,7 @@ function parseManualGeometry(
     manualDimensionsMm: dimensions,
     lengthMm,
     canonicalSpec: `${values.join("x")}${extracted.unit}`,
+    routedProfileId,
   };
 }
 
@@ -1184,7 +1212,7 @@ export function parseQuickQuery(rawQuery: string): QuickParseResponse {
         );
         request = {
           profileAlias: manualAlias.canonicalAlias,
-          profileId: manualAlias.profileId,
+          profileId: geometry.routedProfileId ?? manualAlias.profileId,
           manualDimensionsMm: geometry.manualDimensionsMm,
           lengthMm: geometry.lengthMm,
           quantity: parsed.qty,

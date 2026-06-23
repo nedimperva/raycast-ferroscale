@@ -170,15 +170,7 @@ const ALIASES: AliasConfig[] = [
     exampleGeometry: "100x60x5x6000",
   },
   {
-    aliases: ["sheet", "sht"],
-    canonicalAlias: "sheet",
-    profileId: "sheet",
-    label: "Sheet",
-    category: "plates_sheets",
-    exampleGeometry: "1250x3000x2",
-  },
-  {
-    aliases: ["plate", "pl", "plt"],
+    aliases: ["plate", "pl", "plt", "sheet", "sht"],
     canonicalAlias: "plate",
     profileId: "plate",
     label: "Plate",
@@ -220,7 +212,6 @@ const FRONT_ALIASES = [
   "rb",
   "fb",
   "chs",
-  "sheet",
   "plate",
   "la",
 ];
